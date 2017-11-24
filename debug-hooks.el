@@ -1,5 +1,27 @@
 ;;; debug-hooks.el --- Debug all the hooks -*- lexical-binding: t; -*-
 
+;; Copyright (C) 2017 Joe Schafer
+
+;; Author: Joe Schafer <joe@jschaf.com>
+;; Maintainer:  Joe Schafer <joe@jschaf.com>
+;; Created: 22 Nov 2017
+;; URL: http://github.com/jschaf/emacs-debug-hooks
+;; Version:  0.1
+;; Package-Requires: ((cl-lib "0.5") (emacs "24"))
+;; Keywords: convenience, processes
+
+;; This file is NOT part of GNU Emacs.
+
+;; This program is free software; you can redistribute it and/or
+;; modify it under the terms of the GNU General Public License
+;; as published by the Free Software Foundation; either version 2
+;; of the License, or (at your option) any later version.
+;;
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
 (defvar debug-hooks-buffer "*debug-hooks*"
   "The buffer to output hook debug information.")
 
@@ -254,3 +276,6 @@ parameterize advice."
 (defun debug-hooks-unadvise-single-hook (hook)
   "Remove advice from HOOK.")
 
+
+(provide 'debug-hooks)
+;;; debug-hooks.el ends here

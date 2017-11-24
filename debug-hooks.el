@@ -140,7 +140,7 @@
     (debug-hooks-advise-run-hooks)
     (debug-hooks-advise-hooks debug-hooks-all-hooks))))
 
-(defun hooks//log-hook-message (message)
+(defun debug-hooks//log-hook-message (message)
   (let ((inhibit-modification-hooks t))
     (with-current-buffer "hooks"
       (goto-char (point-min))

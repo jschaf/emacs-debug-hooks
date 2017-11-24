@@ -8,6 +8,8 @@
 (eval-when-compile
   (require 'cl))
 
+(require 'debug-hooks)
+
 ;; (setq aa '((fake-hook . (fake-hook-fn-1 fake-hook-fn2))
 ;;            (fake-function . 'fake-function-impl)))
 
@@ -20,17 +22,25 @@
 
 ;; (dht//make-uninit-single-hook 'a '(d e f))
 
-(defmacro dht/with-temp-hooks (hooks-alist &rest forms)
+(defvar dht--test-buffer "*debug-hooks-test-log*"
+  "Output buffer for debug-hooks log messages.")
+
+(defmacro with-temp-hooks (hooks-alist &rest forms)
   "Defines a new variable for each element in HOOKS-ALIST.
 Errors if the variable is already in use.  For each hook created,
 also defines the list of hooks functions."
-  (let ((hooks (eval hooks-alist)))
-    `(progn
+  (declare (indent 1))
+  (let ((hooks (eval hooks-alist))
+        (orig-buffer (make-symbol "orig-debug-hooks-buffer")))
+    `(let ((,orig-buffer debug-hooks-buffer))
+       (setq debug-hooks-buffer dht--test-buffer)
        ,@(dht//make-init-all-hooks hooks)
        (unwind-protect
            (progn ,@forms)
-         ;; Remove advice
-         ;; Remove advisor functions
+
+         (setq debug-hooks-buffer ,orig-buffer)
+         (with-current-buffer (get-buffer-create dht--test-buffer)
+           (erase-buffer))
          ,@(dht//make-uninit-all-advised-fns hooks)
          ,@(dht//make-uninit-all-hooks hooks)))))
 
@@ -54,7 +64,7 @@ function."
 
     ((listp hook-def)
      (cl-loop for fn-symbol in hook-def
-              collect `(defun ,fn-symbol (orig-fn &rest args)) into def-list
+              collect `(defun ,fn-symbol ()) into def-list
               collect fn-symbol into setq-list
               finally
               (return
@@ -91,13 +101,21 @@ function."
 
 (defun dht//unadvise (advised-fn)
   "Remove advice from ADVISED-FN."
-  (advice-mapc (lambda (added-func props) (fmakeunbound added-func))
+  (advice-mapc (lambda (added-func props) (fmakunbound added-func))
                advised-fn))
 
+(defun dht//collect-advice (advised-fn)
+  "Return a list of all advisors for ADVISED-FN."
+  (let ((advisors nil))
+    (advice-mapc (lambda (added-func props) (add-to-list 'advisors added-func))
+                 advised-fn)
+    advisors))
+
+(ert-deftest dht//advise-single-function--has-one-advice ()
+  (with-temp-hooks '((fake-hook . fake-hook-impl))
+    (debug-hooks-advise-single-function 'fake-hook-impl 'fake-hook)
+    (should (equal (length (dht//collect-advice 'fake-hook-impl))
+                   1))))
 
 (provide 'debug-hooks-test)
 ;;; debug-hooks-test.el end here
-
-(ert-deftest debug-hooks-test/function-advised ()
-  ""
-  (should (equal 1 1)))

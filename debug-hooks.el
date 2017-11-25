@@ -140,18 +140,6 @@
     (debug-hooks-advise-run-hooks)
     (debug-hooks-advise-hooks debug-hooks-all-hooks))))
 
-(defun debug-hooks//log-hook-message (message)
-  (let ((inhibit-modification-hooks t))
-    (with-current-buffer "hooks"
-      (goto-char (point-min))
-      (when (> (buffer-size) 1000)
-        (erase-buffer))
-      (insert (concat
-               (format-time-string "%M:%S.%5N")
-               ":   "
-               message))
-      (insert "\n"))))
-
 (defun debug-hooks-stopwatch-start ()
   "Start a stop-watch and return the current time.
 The time format matches `current-time'."
@@ -222,14 +210,18 @@ parameterize advice."
 (defun debug-hooks-write-log-info (func parent-hook latency)
   "Write log info."
   (with-current-buffer (get-buffer-create debug-hooks-buffer)
-    (when (> (buffer-size) 2000)
-      (erase-buffer))
+    (let ((inhibit-modification-hooks t))
+      (when (> (buffer-size) 10000)
+        (delete-region (line-beginning-position 100) (point-max))
+        (goto-char (point-min)))
 
-    (goto-char (point-min))
-    (insert (format "%.3f ms:  %s - %s\n"
-                    latency
-                    parent-hook
-                    (symbol-name func)))))
+      ;; TODO: this doesn't scroll the buffer to the correct spot.
+      ;; Maybe call interactively.
+      (goto-char (point-min))
+      (insert (format "%.3f ms:  %s - %s\n"
+                      latency
+                      parent-hook
+                      (symbol-name func))))))
 
 (defun debug-hooks--run-hooks-update-current-hook (orig-fn &rest args)
   "Update the `debug-hooks--current-hook' variable"
@@ -245,12 +237,23 @@ parameterize advice."
 
 (defun debug-hooks-unadvise-hooks (hooks)
   "Remove all advice from HOOKS."
-  ;; if single function remove advice directly
-  ;; otherwise remove advice from all members
+  (cl-loop for hook in hooks
+           do
+           (cond
+            ((and (boundp hook) (listp (symbol-value hook)))
+             (cl-loop for func in (symbol-value hook) do
+                      (debug-hooks-unadvise-single-function func)))
+
+            ((functionp (symbol-value hook))
+             (debug-hooks-unadvise-single-function (symbol-value hook)))))
   nil)
 
-(defun debug-hooks-unadvise-single-hook (hook)
-  "Remove advice from HOOK.")
+(defun debug-hooks-unadvise-single-function (func)
+  "Remove all debug-hooks advice from FUNC."
+  (advice-mapc (lambda (added-func props)
+                 (when (string-prefix-p "debug-hooks" (symbol-name added-func))
+                   (advice-remove func added-func)))
+               func))
 
 (provide 'debug-hooks)
 ;;; debug-hooks.el ends here

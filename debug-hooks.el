@@ -172,10 +172,11 @@ the `current-time' documentation for details."
            do
            (cond
             ((and (boundp hook) (listp (symbol-value hook)))
-             (cl-loop for function in hook do
+             (cl-loop for function in (symbol-value hook) do
                       (debug-hooks-advise-single-function function hook)))
-            ((functionp hook)
-             (debug-hooks-advise-single-function hook 'self)))))
+
+            ((functionp (symbol-value hook))
+             (debug-hooks-advise-single-function (symbol-value hook) hook)))))
 
 (defun debug-hooks-advise-single-function (wrapped-fn parent-hook)
   "Advise a single WRAPPED-FN to log debug output.
@@ -200,40 +201,15 @@ parameterize advice."
        (let* ((start-time (debug-hooks-stopwatch-start))
               (result (apply orig-fn args))
               (latency (debug-hooks-stopwatch-stop-in-millis start-time)))
-         (when (eq debug-hooks--current-hook (quote ,parent-hook))
-           (debug-hooks-write-log-info
-            (quote ,wrapped-fn) (quote ,parent-hook) latency))
+         ;; TODO: do we want to check the `debug-hooks--current-hook'
+         (debug-hooks-write-log-info
+          (quote ,wrapped-fn) (quote ,parent-hook) latency)
+         
          result))))
 
 (defun debug-hooks--make-advisor-name (wrapped-fn parent-hook)
   "Make a name for advice of WRAPPED-FN."
   (intern (format "debug-hooks--wrap-%s-%s" wrapped-fn parent-hook)))
-
-
-;; (debug-hooks-advise-single-function
-;;  'global-undo-tree-mode-check-buffers 'post-command-hook)
-
-;; (debug-hooks--make-function-advisor
-;;  'global-undo-tree-mode-check-buffers 'post-command-hook)
-
-;; (let (
-;;       (function-name )
-;;       (advisor
-;;        (eval (debug-hooks--make-function-advisor
-;;               'global-undo-tree-mode-check-buffers
-;;               'post-command-hook))))
-;;   (advice-add 'global-undo-tree-mode-check-buffers
-;;               :around advisor))
-
-
-;; (setq my-hook '())
-
-;; (defun my-fun ())
-
-;; (add-to-list 'my-hook 'my-fun)
-
-
-;; (debug-hooks--make-function-advisor 'my-fun 'my-hook)
 
 (defun debug-hooks-log-hook-info (orig-fn &rest args)
   "Record debug info of ORIG-FN called with ARGS."
@@ -275,7 +251,6 @@ parameterize advice."
 
 (defun debug-hooks-unadvise-single-hook (hook)
   "Remove advice from HOOK.")
-
 
 (provide 'debug-hooks)
 ;;; debug-hooks.el ends here

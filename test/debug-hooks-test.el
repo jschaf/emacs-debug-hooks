@@ -33,7 +33,6 @@ also defines the list of hooks functions."
   (let ((hooks (eval hooks-alist))
         (orig-buffer (make-symbol "orig-debug-hooks-buffer")))
     `(let ((,orig-buffer debug-hooks-buffer))
-       (setq debug-hooks-buffer dht--test-buffer)
        ,@(dht//make-init-all-hooks hooks)
        (unwind-protect
            (progn ,@forms)
@@ -111,11 +110,28 @@ function."
                  advised-fn)
     advisors))
 
+(defmacro with-debug-hooks-test-buffer (&rest forms)
+  "Run FORMS after setting `debug-hooks-buffer' to a test buffer."
+  (declare (indent 0))
+  (let ((orig-test-buffer debug-hooks-buffer))
+    `(unwind-protect
+         (with-current-buffer (get-buffer-create dht--test-buffer)
+           (setq debug-hooks-buffer dht--test-buffer)
+           ,@forms)
+       (setq debug-hooks-buffer ,orig-test-buffer))))
+
 (ert-deftest dht//advise-single-function--has-one-advice ()
   (with-temp-hooks '((fake-hook . fake-hook-impl))
     (debug-hooks-advise-single-function 'fake-hook-impl 'fake-hook)
-    (should (equal (length (dht//collect-advice 'fake-hook-impl))
-                   1))))
+    (should (equal (length (dht//collect-advice 'fake-hook-impl)) 1))))
+
+(ert-deftest dht//advise-single-function--hook-updates-buffer ()
+  (with-temp-hooks '((fake-hook . fake-hook-impl))
+    (debug-hooks-advise-single-function 'fake-hook-impl 'fake-hook)
+    (with-debug-hooks-test-buffer
+      (run-hooks 'fake-hook)
+      (should (equal (buffer-string) "joe")))))
+
 
 (provide 'debug-hooks-test)
 ;;; debug-hooks-test.el end here

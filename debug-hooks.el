@@ -125,20 +125,34 @@
     )
   )
 
-(define-minor-mode debug-hooks-mode
-  "Toggle `debug-hooks-mode' on and off."
-  :lighter " debug-hooks"
-  :init-value nil
-  (cond
-   ;; Disable
-   (debug-hooks-mode
-    (debug-hooks-unadvise-run-hooks)
-    (debug-hooks-unadvise-hooks debug-hooks-all-hooks))
+(defvar debug-hooks-mode nil
+  "Whether or not `debug-hooks-mode' is enabled.")
 
-   ;; Enable
-   (t
-    (debug-hooks-advise-run-hooks)
-    (debug-hooks-advise-hooks debug-hooks-all-hooks))))
+;; Not using a minor mode, because these hooks are global.  It doesn't
+;; make sense to toggle them per-buffer.
+(defun debug-hooks-mode (&optional arg)
+  "Toggle `debug-hooks-mode' on and off."
+  (interactive)
+  (cond
+   ((null arg) (if debug-hooks-mode
+                   (debug-hooks-disable)
+                 (debug-hooks-enable)))
+   ((> arg 0) (debug-hooks-enable))
+   ((<= arg 0) (debug-hooks-disable))
+   (debug-hooks-mode (debug-hooks-disable))
+   (t (debug-hooks-enable))))
+
+(defun debug-hooks-enable ()
+  "Enable `debug-hooks-mode'."
+  (setq debug-hooks-mode t)
+  (debug-hooks-advise-hooks debug-hooks-all-hooks)
+  (message "debug-hooks enabled"))
+
+(defun debug-hooks-disable ()
+  "Disable `debug-hooks-mode'."
+  (setq debug-hooks-mode nil)
+  (debug-hooks-unadvise-hooks debug-hooks-all-hooks)
+  (message "debug-hooks disabled"))
 
 (defun debug-hooks-stopwatch-start ()
   "Start a stop-watch and return the current time.
@@ -232,7 +246,7 @@ parent hook symbol.  Return a list of the output of each FUNC."
                #'debug-hooks-unadvise-single-function
                hook)))
 
-(defun debug-hooks-unadvise-single-function (func)
+(defun debug-hooks-unadvise-single-function (func &optional parent-hook)
   "Remove all debug-hooks advice from FUNC."
   (advice-mapc (lambda (added-func props)
                  (when (string-prefix-p "debug-hooks" (symbol-name added-func))

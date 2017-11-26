@@ -154,17 +154,13 @@ the `current-time' documentation for details."
       (time-subtract (current-time) start-time))
      1000))
 
+;;;###autoload
 (defun debug-hooks-advise-hooks (hooks)
   "Advise all HOOKS to log debug output."
   (cl-loop for hook in hooks
-           do
-           (cond
-            ((and (boundp hook) (listp (symbol-value hook)))
-             (cl-loop for function in (symbol-value hook) do
-                      (debug-hooks-advise-single-function function hook)))
-
-            ((functionp (symbol-value hook))
-             (debug-hooks-advise-single-function (symbol-value hook) hook)))))
+           do (debug-hooks-map-over-hook
+               #'debug-hooks-advise-single-function
+               hook)))
 
 (defun debug-hooks-advise-single-function (wrapped-fn parent-hook)
   "Advise a single WRAPPED-FN to log debug output.
@@ -199,14 +195,6 @@ parameterize advice."
   "Make a name for advice of WRAPPED-FN."
   (intern (format "debug-hooks--wrap-%s-%s" wrapped-fn parent-hook)))
 
-(defun debug-hooks-log-hook-info (orig-fn &rest args)
-  "Record debug info of ORIG-FN called with ARGS."
-  (let* ((start-time (debug-hooks-stopwatch-start))
-         (result (apply orig-fn args))
-         (latency (debug-hooks-stopwatch-stop-in-millis start-time)))
-    (debug-hooks-write-log-info orig-fn latency)
-    result))
-
 (defun debug-hooks-write-log-info (func parent-hook latency)
   "Write log info."
   (with-current-buffer (get-buffer-create debug-hooks-buffer)
@@ -223,30 +211,26 @@ parameterize advice."
                       parent-hook
                       (symbol-name func))))))
 
-(defun debug-hooks--run-hooks-update-current-hook (orig-fn &rest args)
-  "Update the `debug-hooks--current-hook' variable"
-  (setq debug-hooks--current-hook (car-safe args)))
+(defun debug-hooks-map-over-hook (func hook)
+  "Apply FUNC to every function in HOOK.
+FUNC is a lambda that takes two inputs, a function symbol and the
+parent hook symbol.  Return a list of the output of each FUNC."
+  (cond
+   ;; A hook like `post-command-hook'
+   ((and (boundp hook) (listp (symbol-value hook)))
+    (cl-loop for hook-elem in (symbol-value hook)
+             collect (funcall func hook-elem hook)))
 
-(defun debug-hooks-advise-run-hooks ()
-  "Add advice to `run-hooks' to record the current hook."
-  (advice-add 'run-hooks :before #'debug-hooks--run-hooks-update-current-hook))
-
-(defun debug-hooks-unadvise-run-hooks ()
-  "Remove advice to `run-hooks' to record the current hook."
-  (advice-remove 'run-hooks #'debug-hooks--run-hooks-update-current-hook))
+   ;; A hook like `buffer-quit-function'.
+   ((functionp (symbol-value hook))
+    (list (funcall func (symbol-value hook) hook)))))
 
 (defun debug-hooks-unadvise-hooks (hooks)
   "Remove all advice from HOOKS."
   (cl-loop for hook in hooks
-           do
-           (cond
-            ((and (boundp hook) (listp (symbol-value hook)))
-             (cl-loop for func in (symbol-value hook) do
-                      (debug-hooks-unadvise-single-function func)))
-
-            ((functionp (symbol-value hook))
-             (debug-hooks-unadvise-single-function (symbol-value hook)))))
-  nil)
+           do (debug-hooks-map-over-hook
+               #'debug-hooks-unadvise-single-function
+               hook)))
 
 (defun debug-hooks-unadvise-single-function (func)
   "Remove all debug-hooks advice from FUNC."
